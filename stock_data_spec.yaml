@@ -1,0 +1,95 @@
+# stock_data_spec.yaml — 标准化股票数据获取配置
+# Version: 1.1 (updated with 前复权/qfq support)
+
+spec_version: "1.1"
+description: "标准化股票数据获取配置 — 使用前复权(前复权)行情"
+
+data_sources:
+  primary:
+    name: "WeStock (腾讯自选股)"
+    description: "通过 westock-data kline 获取前复权 K 线数据"
+    command: "westock-data kline {code} --start {start} --end {end} --fq qfq"
+    advantages:
+      - "原生支持前复权（--fq qfq）"
+      - "无频率限制"
+      - "覆盖 A 股、港股、美股"
+    limitations:
+      - "无 PE/PB 等估值指标"
+      - "港股字段名略有不同（last=收盘价）"
+  secondary:
+    name: "Tushare MCP"
+    description: "历史日线 + 估值指标，需手动计算复权价格"
+    tools:
+      daily: "mcp__tushareMcp__daily"
+      daily_basic: "mcp__tushareMcp__daily_basic"
+      adj_factor: "mcp__tushareMcp__adj_factor"
+      hk_daily: "mcp__tushareMcp__hk_daily"
+    note: "Tushare daily/hk_daily 默认返回未复权数据。如需复权价格，需额外调用 adj_factor 并手动计算: 前复权价格 = 原始价格 × (当日复权因子 / 最新复权因子)"
+    limitations:
+      - "daily_basic/hk_daily 频率限制: 1次/小时"
+      - "hk_daily_adj 需要高级权限"
+      - "adj_factor 频率限制: 1次/小时"
+
+fields:
+  ohlcv_qfq:
+    description: "前复权 OHLCV 字段 (WeStock kline --fq qfq)"
+    trade_date: "交易日期 YYYY-MM-DD"
+    open: "前复权开盘价"
+    high: "前复权最高价"
+    low: "前复权最低价"
+    close: "前复权收盘价 (WeStock 字段名为 'last')"
+    vol: "成交量 (A股:手, 港股:股)"
+    amount: "成交额 (A股:元, 港股:港元)"
+  valuation:
+    description: "估值指标 (仅 Tushare daily_basic 提供)"
+    pe_ttm: "滚动市盈率"
+    pb: "市净率"
+    ps_ttm: "滚动市销率"
+    dv_ratio: "股息率(%)"
+    total_mv: "总市值(万元)"
+    circ_mv: "流通市值(万元)"
+    turnover_rate: "换手率(%)"
+
+stocks:
+  - name: "中芯国际"
+    symbol: "SMIC"
+    a_code_wstock: "sh688981"
+    h_code_wstock: "hk00981"
+    a_code_ts: "688981.SH"
+    h_code_ts: "00981.HK"
+    market: "dual"
+    sector: "半导体"
+  - name: "比亚迪"
+    symbol: "BYD"
+    a_code_wstock: "sz002594"
+    h_code_wstock: "hk01211"
+    a_code_ts: "002594.SZ"
+    h_code_ts: "01211.HK"
+    market: "dual"
+    sector: "新能源汽车"
+  - name: "长江电力"
+    symbol: "CJDL"
+    a_code_wstock: "sh600900"
+    a_code_ts: "600900.SH"
+    market: "a_only"
+    sector: "电力/公用事业"
+
+date_range:
+  start: "2023-07-04"
+  end: "2026-07-03"
+
+adjustment:
+  method: "qfq"
+  description: "前复权 — 所有历史价格按最新股本/分红调整，适合连续时间序列分析"
+
+output:
+  dir: "outputs/"
+  formats: ["csv", "json"]
+  naming: "{symbol}_{market}_daily"
+  dashboard: true
+  dashboard_dir: "outputs/dashboards/"
+
+known_issues:
+  - "Tushare API 频率限制严重，建议优先使用 WeStock 获取 OHLCV"
+  - "估值指标（PE/PB）目前仅能通过 Tushare daily_basic 获取，延迟较大"
+  - "港股估值指标需要 hk_daily_adj 权限（本次无此权限）"

@@ -1,0 +1,58 @@
+# ============================================================
+# 量化交易 / 数据分析 / 机器学习 —— Python 依赖清单
+# 环境: 受管 Python 3.13.12 @ /Users/ailsa/.workbuddy/binaries/python/envs/default
+# 说明: 按三大方向分类；深度学习框架(PyTorch/TensorFlow)体积大、可选，末尾单独列出
+# ============================================================
+
+# ---------------- 1. 数据分析 / 数据 IO ----------------
+pandas          # 表格数据处理的基石
+numpy           # 数值计算（已装 2.5.1）
+scipy           # 科学计算 / 统计函数
+polars          # 高性能列式 DataFrame（pandas 替代/补充）
+pyarrow         # Parquet 列式存储、Arrow 内存格式
+openpyxl        # 读写 .xlsx
+xlsxwriter      # 写 .xlsx（性能更好）
+fastparquet     # Parquet 读写（pyarrow 备选）
+
+# ---------------- 2. 数据可视化 ----------------
+matplotlib      # 基础绘图
+seaborn         # 统计可视化（基于 matplotlib）
+plotly          # 交互式图表
+bokeh           # 交互式 Web 图表
+mplfinance      # K 线 / 金融图表专用
+
+# ---------------- 3. 量化交易 ----------------
+tushare         # A 股/基本面/宏观经济数据（需 token）
+akshare         # 免费开源财经数据接口（A股/基金/期货/宏观）
+baostock        # 免费 A 股历史行情
+yfinance        # Yahoo Finance 全球行情
+pandas-datareader  # 多源金融数据读取（FRED/Stooq 等）
+ta              # 技术指标库（RSI/MACD/BOLL 等 100+ 指标）
+backtrader      # 经典回测框架
+quantstats      # 量化策略绩效分析/可视化
+ccxt            # 加密货币交易所行情与交易（已装 4.5.64）
+
+# ---------------- 4. 机器学习 / 时间序列 ----------------
+scikit-learn    # 经典机器学习（回归/分类/聚类/管道）
+statsmodels     # 计量经济与统计建模（OLS/ARIMA/单位根检验）
+xgboost         # 梯度提升树（XGBoost）
+lightgbm        # 梯度提升树（LightGBM，速度快）
+catboost        # 梯度提升树（CatBoost，类别特征友好）
+arch            # 波动率建模（GARCH 族）
+pmdarima        # 自动 ARIMA 调参
+shap            # 模型可解释性 / 特征贡献
+
+# ---------------- 5. Jupyter 交互式开发 ----------------
+jupyterlab      # Jupyter Lab 集成环境
+notebook        # 经典 Notebook
+ipykernel       # 供 Jupyter 调用的内核
+nbconvert       # Notebook 转换（导出 html/pdf）
+ipywidgets      # Notebook 交互控件
+jupyterlab-language-pack-zh-CN  # Jupyter Lab 中文界面
+
+# ============================================================
+# 可选：深度学习框架（体积大，按需单独安装）
+#   pip install torch torchvision torchaudio   # PyTorch (Apple MPS 加速)
+#   pip install tensorflow                      # TensorFlow
+#   pip install transformers                    # HuggingFace NLP/时序预训练
+# ============================================================
