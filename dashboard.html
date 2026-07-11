@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>双均线策略回测看板 · 可配置参数</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  :root {
+    --primary: #DC143C;
+    --primary-light: #fff5f5;
+    --green: #228B22;
+    --bg: #F5F7FA;
+    --card: #FFFFFF;
+    --text: #1a1a2e;
+    --sub: #666;
+    --border: #e8ecf0;
+    --blue: #1565C0;
+    --orange: #F57C00;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5; font-size: 14px;
+  }
+  .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+
+  .sidebar {
+    background: var(--card); border-right: 1px solid var(--border);
+    padding: 20px 18px; overflow-y: auto;
+  }
+  .sidebar h1 { font-size: 1.2em; color: var(--primary); margin-bottom: 4px; }
+  .sidebar h1 + .sub { font-size: 0.8em; color: var(--sub); margin-bottom: 18px; }
+  .section { margin-bottom: 20px; }
+  .section-title {
+    font-size: 0.85em; font-weight: 700; color: var(--text);
+    margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+  }
+  .section-title::before {
+    content: ""; display: inline-block; width: 3px; height: 14px;
+    background: var(--primary); border-radius: 2px;
+  }
+  label { display: block; font-size: 0.8em; color: var(--sub); margin: 8px 0 4px; }
+  select, input[type="date"], input[type="number"] {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: 6px; font-size: 0.9em; background: white;
+  }
+  .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .slider-row input[type="range"] { flex: 1; }
+  .slider-row .val { min-width: 32px; text-align: right; font-weight: 600; color: var(--primary); }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; margin: 6px 0; }
+  .switch-row span { font-size: 0.85em; }
+  .switch {
+    position: relative; width: 38px; height: 20px; background: #ccc; border-radius: 10px;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .switch.on { background: var(--primary); }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; background: white; border-radius: 50%;
+    transition: left 0.2s;
+  }
+  .switch.on::after { left: 20px; }
+  .reset-btn {
+    width: 100%; padding: 8px; background: var(--primary-light);
+    border: 1px solid var(--primary); color: var(--primary);
+    border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 10px;
+  }
+  .reset-btn:hover { background: var(--primary); color: white; }
+  .indicators {
+    margin-top: 20px; padding: 12px; background: var(--primary-light);
+    border-radius: 8px; font-size: 0.78em;
+  }
+  .indicators .row { display: flex; justify-content: space-between; margin: 3px 0; }
+  .indicators .label { color: var(--sub); }
+
+  .main { padding: 18px 22px; overflow-x: auto; }
+  .metrics-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;
+  }
+  .metric-card {
+    background: var(--card); border-radius: 10px; padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .metric-card .name { font-size: 0.85em; color: var(--sub); margin-bottom: 6px; }
+  .metric-card .value { font-size: 1.8em; font-weight: 700; }
+  .metric-card .sub { font-size: 0.75em; color: var(--sub); margin-top: 4px; }
+  .metric-card .value.pos { color: var(--primary); }
+  .metric-card .value.neg { color: var(--green); }
+  .charts-row {
+    display: grid; grid-template-columns: 1fr; gap: 14px;
+  }
+  .chart-box {
+    background: var(--card); border-radius: 10px; padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .chart-box h3 { font-size: 0.95em; margin-bottom: 8px; }
+  .chart-box .legend { display: flex; gap: 16px; font-size: 0.78em; color: var(--sub); margin-bottom: 4px; flex-wrap: wrap; }
+  .chart-box .legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .chart-tall { height: 320px; }
+  .chart-mid  { height: 200px; }
+  .chart-short{ height: 240px; }
+  .two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top:14px; }
+  .loading { text-align: center; color: var(--sub); padding: 30px; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    .two-cols { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h1>双均线策略回测看板</h1>
+    <div class="sub" id="header-sub">SMA(5, 20)</div>
+
+    <div class="section">
+      <div class="section-title">📈 标的选择</div>
+      <select id="stock">
+        <option value="SMIC_A">SMIC A (中芯国际 688981.SH)</option>
+        <option value="SMIC_H">SMIC H (中芯国际 00981.HK)</option>
+        <option value="BYD_A" selected>BYD A (比亚迪 002594.SZ)</option>
+        <option value="BYD_H">BYD H (比亚迪 01211.HK)</option>
+        <option value="CJDL_A">CJDL A (长江电力 600900.SH)</option>
+      </select>
+      <div class="sub" id="stock-meta" style="font-size:0.75em;color:var(--sub);margin-top:4px"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📅 时间窗口</div>
+      <label>起始日期</label>
+      <input type="date" id="start_date" value="2023-07-04" />
+      <label>结束日期</label>
+      <input type="date" id="end_date" value="2026-07-03" />
+    </div>
+
+    <div class="section">
+      <div class="section-title">📊 均线参数</div>
+      <label>短周期 SMA</label>
+      <div class="slider-row">
+        <input type="range" id="short_ma" min="2" max="60" value="5" />
+        <span class="val" id="short_ma_val">5</span>
+      </div>
+      <label>长周期 SMA</label>
+      <div class="slider-row">
+        <input type="range" id="long_ma" min="5" max="120" value="20" />
+        <span class="val" id="long_ma_val">20</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">💸 交易成本</div>
+      <div class="switch-row">
+        <span>手续费（万三）</span>
+        <div class="switch on" id="sw_commission"></div>
+      </div>
+      <div class="switch-row">
+        <span>滑点（万一）</span>
+        <div class="switch on" id="sw_slippage"></div>
+      </div>
+      <label>费率（bp，万分之一=1bp）</label>
+      <input type="number" id="fee_bp" value="3" min="0" max="100" step="1" />
+    </div>
+
+    <div class="section">
+      <div class="section-title">💰 初始资金</div>
+      <input type="number" id="capital" value="100000" step="10000" min="10000" />
+    </div>
+
+    <button class="reset-btn" onclick="resetDefaults()">↻ 重置默认参数</button>
+
+    <div class="indicators" id="indicators">
+      <div class="row"><span class="label">交易对数</span><span id="ind_n">-</span></div>
+      <div class="row"><span class="label">买入信号</span><span id="ind_b">-</span></div>
+      <div class="row"><span class="label">卖出信号</span><span id="ind_s">-</span></div>
+      <div class="row"><span class="label">时间区间</span><span id="ind_t">-</span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="name">年化收益率</div>
+        <div class="value" id="m_annual">-</div>
+        <div class="sub">跑赢基准 <span id="m_alpha">-</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="name">夏普比率</div>
+        <div class="value" id="m_sharpe">-</div>
+        <div class="sub"><span id="m_sharpe_lbl">-</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="name">最大回撤</div>
+        <div class="value" id="m_mdd">-</div>
+        <div class="sub">发生区间 <span id="m_mdd_range">-</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="name">胜率</div>
+        <div class="value" id="m_win">-</div>
+        <div class="sub">盈亏比 <span id="m_pl">-</span></div>
+      </div>
+    </div>
+
+    <div class="chart-box chart-tall">
+      <h3>策略净值 vs 买入持有基准</h3>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--primary)"></span>策略净值</span>
+        <span><span class="dot" style="background:#999"></span>买入持有</span>
+      </div>
+      <canvas id="equityChart"></canvas>
+    </div>
+
+    <div class="two-cols">
+      <div class="chart-box chart-mid">
+        <h3>回撤 (%)</h3>
+        <canvas id="ddChart"></canvas>
+      </div>
+      <div class="chart-box chart-short">
+        <h3>价格 + 均线 + 买卖点</h3>
+        <div class="legend">
+          <span><span class="dot" style="background:#333"></span>收盘价</span>
+          <span><span class="dot" style="background:var(--orange)"></span>SMA(short)</span>
+          <span><span class="dot" style="background:var(--blue)"></span>SMA(long)</span>
+          <span style="color:var(--primary)">▲ 买入</span>
+          <span style="color:var(--green)">▼ 卖出</span>
+        </div>
+        <canvas id="priceChart"></canvas>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+// 加载股票数据
+// ════════════════════════════════════════════════
+let STOCKS = null;
+async function loadStocks() {
+  const r = await fetch("./outputs/dashboard_data/stocks.json");
+  STOCKS = await r.json();
+  // 初始化日期范围
+  const sm = $("stock").value;
+  const d0 = STOCKS[sm].trade_date[0];
+  const d1 = STOCKS[sm].trade_date[STOCKS[sm].trade_date.length-1];
+  $("start_date").min = d0; $("start_date").max = d1;
+  $("end_date").min   = d0; $("end_date").max   = d1;
+  $("start_date").value = d0;
+  $("end_date").value   = d1;
+  updateMeta(sm);
+  runBacktest();
+}
+
+const $ = id => document.getElementById(id);
+const state = {
+  commissionOn: true, slippageOn: true,
+  charts: { equity: null, dd: null, price: null },
+};
+
+$("short_ma").addEventListener("input", e => $("short_ma_val").textContent = e.target.value);
+$("long_ma").addEventListener("input",  e => $("long_ma_val").textContent  = e.target.value);
+$("sw_commission").addEventListener("click", () => {
+  state.commissionOn = !state.commissionOn;
+  $("sw_commission").classList.toggle("on", state.commissionOn);
+  runBacktest();
+});
+$("sw_slippage").addEventListener("click", () => {
+  state.slippageOn = !state.slippageOn;
+  $("sw_slippage").classList.toggle("on", state.slippageOn);
+  runBacktest();
+});
+["stock","start_date","end_date","short_ma","long_ma","fee_bp","capital"].forEach(id => {
+  $(id).addEventListener("change", () => {
+    if (id === "stock") {
+      const sm = $("stock").value;
+      const d0 = STOCKS[sm].trade_date[0];
+      const d1 = STOCKS[sm].trade_date[STOCKS[sm].trade_date.length-1];
+      $("start_date").min = d0; $("start_date").max = d1;
+      $("end_date").min   = d0; $("end_date").max   = d1;
+      if ($("start_date").value < d0) $("start_date").value = d0;
+      if ($("end_date").value   > d1) $("end_date").value   = d1;
+      updateMeta(sm);
+    }
+    runBacktest();
+  });
+});
+
+function updateMeta(sm) {
+  const n = STOCKS[sm].trade_date.length;
+  $("stock-meta").textContent = `共 ${n} 个交易日 · ${STOCKS[sm].trade_date[0]} ~ ${STOCKS[sm].trade_date[n-1]}`;
+}
+
+function resetDefaults() {
+  $("stock").value = "BYD_A";
+  $("stock").dispatchEvent(new Event("change"));
+  $("short_ma").value = 5;  $("short_ma_val").textContent = 5;
+  $("long_ma").value  = 20; $("long_ma_val").textContent  = 20;
+  $("fee_bp").value   = 3;
+  $("capital").value  = 100000;
+  state.commissionOn = true; state.slippageOn = true;
+  $("sw_commission").classList.add("on");
+  $("sw_slippage").classList.add("on");
+  runBacktest();
+}
+
+// ════════════════════════════════════════════════
+// 回测引擎（纯 JS）
+// ════════════════════════════════════════════════
+function runBacktest() {
+  if (!STOCKS) return;
+
+  const stockKey = $("stock").value;
+  const stock = STOCKS[stockKey];
+  const startDate = $("start_date").value;
+  const endDate   = $("end_date").value;
+  const shortP = Number($("short_ma").value);
+  const longP  = Number($("long_ma").value);
+  const feeRate = (state.commissionOn ? Number($("fee_bp").value) / 10000 : 0)
+                + (state.slippageOn ? 0.0001 : 0);
+  const initialCapital = Number($("capital").value);
+
+  $("header-sub").textContent = `SMA(${shortP}, ${longP})`;
+
+  // 过滤日期范围
+  const idx = [];
+  for (let i = 0; i < stock.trade_date.length; i++) {
+    const d = stock.trade_date[i];
+    if (d >= startDate && d <= endDate) idx.push(i);
+  }
+  if (idx.length < longP + 2) {
+    alert("数据点不足，请扩大日期范围或缩小长周期");
+    return;
+  }
+
+  const dates = idx.map(i => stock.trade_date[i]);
+  const close = idx.map(i => stock.close[i]);
+
+  // 计算 SMA
+  const maShort = computeSMA(close, shortP);
+  const maLong  = computeSMA(close, longP);
+
+  // 信号：cross > 0 → 持仓(1)，cross < 0 → 空仓(0)
+  const position = new Array(close.length).fill(0);
+  for (let i = 1; i < close.length; i++) {
+    position[i] = (maShort[i] > 0 && maLong[i] > 0 && maShort[i] > maLong[i]) ? 1 : 0;
+  }
+  // 计算 signal change → 买卖点
+  const buySignals  = [];
+  const buyPrices   = [];
+  const sellSignals = [];
+  const sellPrices  = [];
+  for (let i = 1; i < position.length; i++) {
+    if (position[i] === 1 && position[i-1] === 0) {
+      buySignals.push(dates[i]);
+      buyPrices.push(close[i]);
+    } else if (position[i] === 0 && position[i-1] === 1) {
+      sellSignals.push(dates[i]);
+      sellPrices.push(close[i]);
+    }
+  }
+  // 结尾仍持仓则按收盘价强平
+  if (position[position.length-1] === 1) {
+    sellSignals.push(dates[dates.length-1]);
+    sellPrices.push(close[close.length-1]);
+  }
+
+  // 资金曲线
+  const equity = new Array(close.length).fill(initialCapital);
+  let cash = initialCapital, shares = 0, inPos = false;
+  for (let i = 0; i < close.length; i++) {
+    const p = close[i];
+    if (position[i] === 1 && !inPos) {
+      // 买入：扣手续费
+      const buyCost = feeRate;
+      shares = cash / (p * (1 + buyCost));
+      cash = 0;
+      inPos = true;
+    } else if (position[i] === 0 && inPos) {
+      // 卖出：扣手续费
+      const sellCost = feeRate;
+      cash = shares * p * (1 - sellCost);
+      shares = 0;
+      inPos = false;
+    }
+    equity[i] = cash + shares * p;
+  }
+
+  // 指标
+  const totalReturn = (equity[equity.length-1] / initialCapital - 1) * 100;
+  const years = equity.length / 252;
+  const annualReturn = (Math.pow(equity[equity.length-1] / initialCapital, 1 / Math.max(years, 1e-6)) - 1) * 100;
+
+  // 基准（买入持有）
+  const benchRet = new Array(close.length).fill(0);
+  for (let i = 1; i < close.length; i++) benchRet[i] = close[i] / close[i-1] - 1;
+  const benchCum = cumprod([1].concat(benchRet.slice(1).map(r => 1 + r)));
+  const benchTotal = (benchCum[benchCum.length-1] - 1) * 100;
+
+  // 最大回撤
+  const peak = runningMax(equity);
+  const dd = equity.map((e, i) => (e - peak[i]) / peak[i] * 100);
+  const mdd = Math.min(...dd);
+
+  // 夏普比率（无风险利率 3%）
+  const eqRet = equity.slice(1).map((e, i) => e / equity[i] - 1);
+  const rfDaily = 0.03 / 252;
+  const mean = mean_(eqRet);
+  const std = std_(eqRet);
+  const sharpe = std > 0 ? (mean - rfDaily) / std * Math.sqrt(252) : 0;
+
+  // 胜率 + 盈亏比
+  const nPairs = Math.min(buyPrices.length, sellPrices.length);
+  let winCount = 0, wins = [], losses = [];
+  for (let k = 0; k < nPairs; k++) {
+    const r = sellPrices[k] / buyPrices[k] - 1;
+    if (r > 0) { winCount++; wins.push(r); } else { losses.push(r); }
+  }
+  const winRate = nPairs > 0 ? winCount / nPairs * 100 : 0;
+  const avgWin  = wins.length  ? wins.reduce((a,b)=>a+b,0)/wins.length  * 100 : 0;
+  const avgLoss = losses.length? losses.reduce((a,b)=>a+b,0)/losses.length * 100 : 0;
+  const pl = avgLoss !== 0 ? Math.abs(avgWin / avgLoss) : 0;
+
+  // 标准化曲线
+  const eqNorm = equity.map(e => e / equity[0]);
+
+  // 风险
+  const volatility = std * Math.sqrt(252) * 100;
+
+  // 渲染指标
+  const set = (id, val, pos) => {
+    $(id).textContent = val;
+    $(id).className = "value " + (pos === "pos" ? "pos" : (pos === "neg" ? "neg" : ""));
+  };
+  set("m_annual", (annualReturn >= 0 ? "+" : "") + annualReturn.toFixed(2) + "%", annualReturn >= 0 ? "pos" : "neg");
+  $("m_alpha").textContent = (annualReturn - benchTotal).toFixed(2) + "%";
+
+  set("m_sharpe", sharpe.toFixed(3), sharpe >= 1 ? "pos" : (sharpe >= 0 ? "" : "neg"));
+  $("m_sharpe_lbl").textContent = sharpe >= 1 ? "强" : (sharpe >= 0 ? "中性" : "弱");
+
+  set("m_mdd", mdd.toFixed(2) + "%", mdd < -20 ? "neg" : "pos");
+  // 最大回撤发生区间
+  const mddIdx = dd.indexOf(mdd);
+  $("m_mdd_range").textContent = mddIdx > 0 ? `${dates[0]} ~ ${dates[mddIdx]}` : "-";
+
+  set("m_win", winRate.toFixed(1) + "%", winRate >= 50 ? "pos" : "neg");
+  $("m_pl").textContent = pl > 0 ? pl.toFixed(2) : "-";
+
+  $("ind_n").textContent = nPairs;
+  $("ind_b").textContent = buySignals.length;
+  $("ind_s").textContent = sellSignals.length;
+  $("ind_t").textContent = `${startDate} ~ ${endDate}`;
+
+  // 绘图
+  drawEquity(dates, eqNorm, benchCum);
+  drawDrawdown(dates, dd);
+  drawPrice(dates, close, maShort, maLong, buySignals, buyPrices, sellSignals, sellPrices, shortP, longP);
+}
+
+// ════════════════════════════════════════════════
+// 工具函数
+// ════════════════════════════════════════════════
+function computeSMA(arr, period) {
+  const out = new Array(arr.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < arr.length; i++) {
+    sum += arr[i];
+    if (i >= period) sum -= arr[i - period];
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+function runningMax(arr) {
+  const out = new Array(arr.length); let m = arr[0];
+  for (let i = 0; i < arr.length; i++) { m = Math.max(m, arr[i]); out[i] = m; }
+  return out;
+}
+function cumprod(arr) {
+  const out = new Array(arr.length); let p = 1;
+  for (let i = 0; i < arr.length; i++) { p *= arr[i]; out[i] = p; }
+  return out;
+}
+function mean_(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+function std_(arr) {
+  if (arr.length < 2) return 0;
+  const m = mean_(arr);
+  return Math.sqrt(arr.reduce((s,x)=>s+(x-m)*(x-m),0)/(arr.length-1));
+}
+function destroyChart(name) {
+  if (state.charts[name]) { state.charts[name].destroy(); state.charts[name] = null; }
+}
+
+function drawEquity(dates, strat, bench) {
+  destroyChart("equity");
+  state.charts.equity = new Chart($("equityChart").getContext("2d"), {
+    type: "line",
+    data: {
+      labels: dates,
+      datasets: [
+        { label: "策略净值", data: strat, borderColor: "#DC143C",
+          backgroundColor: "rgba(220,20,60,0.05)", borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.05 },
+        { label: "买入持有", data: bench, borderColor: "#999",
+          borderDash: [4,4], borderWidth: 1, pointRadius: 0, fill: false, tension: 0.05 },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { x: { ticks: { maxTicksLimit: 10 } }, y: { beginAtZero: false } },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function drawDrawdown(dates, dd) {
+  destroyChart("dd");
+  state.charts.dd = new Chart($("ddChart").getContext("2d"), {
+    type: "line",
+    data: { labels: dates, datasets: [{
+      label: "回撤(%)", data: dd, borderColor: "#228B22",
+      backgroundColor: "rgba(34,139,34,0.2)", borderWidth: 0.8, pointRadius: 0, fill: true,
+    }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { x: { ticks: { maxTicksLimit: 8 } }, y: { max: 0 } },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function drawPrice(dates, close, maS, maL, buyDates, buyP, sellDates, sellP, sp, lp) {
+  destroyChart("price");
+  const buyMap = Object.fromEntries(buyDates.map((d,i)=>[d, buyP[i]]));
+  const sellMap = Object.fromEntries(sellDates.map((d,i)=>[d, sellP[i]]));
+  const buySeries  = dates.map(d => buyMap[d]  ?? null);
+  const sellSeries = dates.map(d => sellMap[d] ?? null);
+
+  state.charts.price = new Chart($("priceChart").getContext("2d"), {
+    type: "line",
+    data: { labels: dates, datasets: [
+      { label: "收盘价", data: close, borderColor: "#333", borderWidth: 1, pointRadius: 0, tension: 0.05 },
+      { label: `SMA(${sp})`, data: maS, borderColor: "#F57C00", borderWidth: 1, pointRadius: 0, tension: 0.05, spanGaps: false },
+      { label: `SMA(${lp})`, data: maL, borderColor: "#1565C0", borderWidth: 1, pointRadius: 0, tension: 0.05, spanGaps: false },
+      { label: "买入", data: buySeries,  borderColor: "#DC143C", backgroundColor: "#DC143C",
+        pointStyle: "triangle", pointRadius: 7, showLine: false },
+      { label: "卖出", data: sellSeries, borderColor: "#228B22", backgroundColor: "#228B22",
+        pointStyle: "rectRot",  pointRadius: 7, showLine: false },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { x: { ticks: { maxTicksLimit: 8 } } },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+loadStocks();
+</script>
+
+</body>
+</html>
