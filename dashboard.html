@@ -108,8 +108,18 @@
     .two-cols { grid-template-columns: 1fr; }
   }
 </style>
+  .loading-msg {
+    position: fixed; top: 20px; right: 20px; padding: 12px 18px;
+    background: var(--primary); color: white; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 0.9em; z-index: 9999;
+  }
+  .loading-msg.err { background: #B71C1C; }
+  .loading-msg.ok  { background: #2E7D32; }
+</style>
 </head>
 <body>
+
+<div id="status" class="loading-msg" style="display:none"></div>
 
 <div class="layout">
   <aside class="sidebar">
@@ -236,12 +246,45 @@
 // ════════════════════════════════════════════════
 // 加载股票数据
 // ════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
 let STOCKS = null;
+
+function showStatus(msg, type="ok", timeout=3000) {
+  const el = $("status");
+  el.textContent = msg;
+  el.className = "loading-msg " + type;
+  el.style.display = "block";
+  if (timeout) setTimeout(() => { el.style.display = "none"; }, timeout);
+}
+
 async function loadStocks() {
-  const r = await fetch("./outputs/dashboard_data/stocks.json");
-  STOCKS = await r.json();
+  // 用多种路径尝试，应对不同的部署根目录
+  const paths = [
+    "./outputs/dashboard_data/stocks.json",
+    "outputs/dashboard_data/stocks.json",
+    "/outputs/dashboard_data/stocks.json",
+  ];
+  for (const p of paths) {
+    try {
+      const r = await fetch(p);
+      if (r.ok) {
+        STOCKS = await r.json();
+        showStatus("✓ 股票数据已加载 (" + Object.keys(STOCKS).length + " 只)", "ok", 2000);
+        console.log("Loaded from", p);
+        break;
+      }
+    } catch (e) { console.warn("Try", p, "failed:", e); }
+  }
+  if (!STOCKS) {
+    showStatus("❌ 无法加载 stocks.json，请检查部署路径", "err", 8000);
+    return;
+  }
   // 初始化日期范围
   const sm = $("stock").value;
+  if (!STOCKS[sm]) {
+    showStatus("❌ 股票代码无效: " + sm, "err");
+    return;
+  }
   const d0 = STOCKS[sm].trade_date[0];
   const d1 = STOCKS[sm].trade_date[STOCKS[sm].trade_date.length-1];
   $("start_date").min = d0; $("start_date").max = d1;
@@ -251,8 +294,6 @@ async function loadStocks() {
   updateMeta(sm);
   runBacktest();
 }
-
-const $ = id => document.getElementById(id);
 const state = {
   commissionOn: true, slippageOn: true,
   charts: { equity: null, dd: null, price: null },
@@ -308,7 +349,19 @@ function resetDefaults() {
 // 回测引擎（纯 JS）
 // ════════════════════════════════════════════════
 function runBacktest() {
-  if (!STOCKS) return;
+  if (!STOCKS) {
+    showStatus("⏳ 股票数据加载中...", "ok", 2000);
+    return;
+  }
+  try {
+    _runBacktest();
+  } catch (e) {
+    console.error("Backtest error:", e);
+    showStatus("❌ 回测错误: " + e.message, "err", 6000);
+  }
+}
+
+function _runBacktest() {
 
   const stockKey = $("stock").value;
   const stock = STOCKS[stockKey];
@@ -328,8 +381,12 @@ function runBacktest() {
     const d = stock.trade_date[i];
     if (d >= startDate && d <= endDate) idx.push(i);
   }
+  if (idx.length === 0) {
+    showStatus("❌ 选定日期范围内无数据，请调整起止日期", "err", 5000);
+    return;
+  }
   if (idx.length < longP + 2) {
-    alert("数据点不足，请扩大日期范围或缩小长周期");
+    showStatus("❌ 数据点不足（" + idx.length + " < " + (longP+2) + "），请扩大日期范围或缩小长周期", "err", 5000);
     return;
   }
 
